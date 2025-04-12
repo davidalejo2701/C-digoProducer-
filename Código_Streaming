@@ -1,0 +1,55 @@
+from pyspark.sql import SparkSession 
+
+from pyspark.sql.functions import from_json, col, window 
+
+from pyspark.sql.types import StructType, StructField, IntegerType, StringType 
+
+ 
+
+# Esquema de los datos 
+
+schema = StructType([ 
+
+    StructField("codigo_dane", IntegerType()), 
+
+    StructField("departamento", StringType()), 
+
+    StructField("municipio", StringType()), 
+
+    StructField("nivel", StringType()), 
+
+    StructField("matriculados", IntegerType()), 
+
+    StructField("vigencia", IntegerType()) 
+
+]) 
+
+# Crear sesión Spark 
+
+spark = SparkSession.builder.appName("EducacionStreaming").getOrCreate() 
+
+spark.sparkContext.setLogLevel("WARN") 
+
+# Leer desde Kafka 
+
+df = spark.readStream.format("kafka") \ 
+
+    .option("kafka.bootstrap.servers", "localhost:9092") \ 
+
+    .option("subscribe", "educacion_data") \ 
+
+    .load() 
+
+# Parseo de JSON 
+
+datos = df.select(from_json(col("value").cast("string"), schema).alias("data")).select("data.*") 
+
+# Agrupación por municipio y nivel 
+
+resumen = datos.groupBy("municipio", "nivel").sum("matriculados") 
+
+# Mostrar resultados en consola 
+
+query = resumen.writeStream.outputMode("complete").format("console").start() 
+
+query.awaitTermination() 
