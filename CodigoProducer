@@ -1,0 +1,45 @@
+import time 
+
+import json 
+
+import random 
+
+from kafka import KafkaProducer 
+
+departamentos = ["Atlántico", "Cundinamarca", "Antioquia", "Valle", "Bolívar"] 
+
+municipios = ["Barranquilla", "Soledad", "Medellín", "Cali", "Cartagena"] 
+
+niveles = ["Preescolar", "Primaria", "Secundaria", "Media"] 
+
+def generar_dato_educativo(): 
+
+    return { 
+
+        "codigo_dane": random.randint(100000, 999999), 
+
+        "departamento": random.choice(departamentos), 
+
+        "municipio": random.choice(municipios), 
+
+        "nivel": random.choice(niveles), 
+
+        "matriculados": random.randint(100, 2000), 
+
+        "vigencia": 2023 
+
+    } 
+
+producer = KafkaProducer(bootstrap_servers=['localhost:9092'], 
+
+                         value_serializer=lambda x: json.dumps(x).encode('utf-8')) 
+
+while True: 
+
+    dato = generar_dato_educativo() 
+
+    producer.send('educacion_data', value=dato) 
+
+    print(f"Enviado: {dato}") 
+
+    time.sleep(1) 
