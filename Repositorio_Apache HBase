@@ -1,0 +1,76 @@
+import happybase
+import pandas as pd
+
+try:
+    # 1. Conectar a HBase
+    connection = happybase.Connection('localhost')
+    print("Conexión establecida con HBase")
+
+    # 2. Crear la tabla
+    table_name = 'books'
+    families = {
+        'info': dict(),     # título, autor, género, año
+        'details': dict(),  # páginas, rating, editorial
+        'sales': dict()     # precio
+    }
+
+    if table_name.encode() in connection.tables():
+        print(f"Eliminando tabla existente - {table_name}")
+        connection.delete_table(table_name, disable=True)
+
+    connection.create_table(table_name, families)
+    table = connection.table(table_name)
+    print("Tabla 'books' creada exitosamente")
+
+    # 3. Cargar CSV
+    books = pd.read_csv('book_dataset.csv')
+
+    for index, row in books.iterrows():
+        row_key = f'book_{index}'.encode()
+        data = {
+            b'info:title': str(row['title']).encode(),
+            b'info:author': str(row['author']).encode(),
+            b'info:genre': str(row['genre']).encode(),
+            b'info:year': str(row['year']).encode(),
+
+            b'details:pages': str(row['pages']).encode(),
+            b'details:rating': str(row['rating']).encode(),
+            b'details:publisher': str(row['publisher']).encode(),
+
+            b'sales:price': str(row['price']).encode()
+        }
+        table.put(row_key, data)
+
+    print("Datos cargados exitosamente")
+
+    # 4. Mostrar los primeros 3 libros
+    print("\n=== Libros (primeros 3) ===")
+    for count, (key, data) in enumerate(table.scan()):
+        if count >= 3: break
+        print(f"ID: {key.decode()}")
+        print(f"Título: {data[b'info:title'].decode()}")
+        print(f"Autor: {data[b'info:author'].decode()}")
+        print(f"Precio: {data[b'sales:price'].decode()}\n")
+
+    # 5. Libros con precio menor a 30000
+    print("\n=== Libros con precio menor a 30000 ===")
+    for key, data in table.scan():
+        if int(data[b'sales:price'].decode()) < 30000:
+            print(f"ID: {key.decode()} - {data[b'info:title'].decode()} - Precio: {data[b'sales:price'].decode()}")
+
+    # 6. Promedio de calificación
+    print("\n=== Calificación promedio ===")
+    total_rating, count = 0, 0
+    for key, data in table.scan():
+        total_rating += float(data[b'details:rating'].decode())
+        count += 1
+    print(f"Promedio: {total_rating / count:.2f}")
+
+    # 7. Actualizar el precio del primer libro
+    table.put(b'book_0', {b'sales:price': b'50000'})
+    print("\nPrecio actualizado para el libro book_0")
+
+except Exception as e:
+    print("Error:", e)
+finally:
+    connection.close()
